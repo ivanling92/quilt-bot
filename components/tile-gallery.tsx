@@ -1,10 +1,11 @@
 "use client"
 
-import { Trash2 } from "lucide-react"
+import { Trash2, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import type { TileData } from "@/lib/types"
+import { useState } from "react"
 
 interface TileGalleryProps {
   tiles: TileData[]
@@ -13,9 +14,45 @@ interface TileGalleryProps {
 }
 
 export function TileGallery({ tiles, onUpdate, onRemove }: TileGalleryProps) {
+  const [baseNumber, setBaseNumber] = useState<string>("")
+
+  const applyBaseNumber = () => {
+    const num = Number.parseInt(baseNumber, 10)
+    if (!isNaN(num) && num > 0) {
+      // Update each tile individually
+      for (const tile of tiles) {
+        onUpdate(tile.id, { count: tile.count + num })
+      }
+      setBaseNumber("")
+    }
+  }
+
   return (
     <Card className="p-6">
-      <h2 className="text-xl font-semibold mb-4 text-card-foreground">Tile Collection ({tiles.length} patterns)</h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-semibold text-card-foreground">Tile Collection ({tiles.length} patterns)</h2>
+
+        <div className="flex items-center gap-2">
+          <Input
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            value={baseNumber}
+            onChange={(e) => setBaseNumber(e.target.value)}
+            placeholder="Base number"
+            className="h-9 w-32"
+          />
+          <Button
+            onClick={applyBaseNumber}
+            disabled={!baseNumber || Number.parseInt(baseNumber, 10) <= 0}
+            size="sm"
+            variant="secondary"
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Add to All
+          </Button>
+        </div>
+      </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
         {tiles.map((tile) => (

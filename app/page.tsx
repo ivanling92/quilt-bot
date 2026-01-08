@@ -28,7 +28,7 @@ export default function QuiltTilerPage() {
   }
 
   const updateTile = (id: string, updates: Partial<TileData>) => {
-    setTiles(tiles.map((tile) => (tile.id === id ? { ...tile, ...updates } : tile)))
+    setTiles((currentTiles) => currentTiles.map((tile) => (tile.id === id ? { ...tile, ...updates } : tile)))
     setValidationError(null)
   }
 

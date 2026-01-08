@@ -3,6 +3,7 @@ export interface TileData {
   imageData: string
   count: number
   dominantColor: string
+  blurredDominantColor: string
   brightness: number
   colorHistogram: number[]
   patternType: "solid" | "striped" | "geometric" | "floral" | "abstract"

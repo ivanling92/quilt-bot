@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState, useRef } from "react"
-import { Download, RefreshCw, ZoomIn, ZoomOut, RotateCcw } from "lucide-react"
+import { Download, RefreshCw, ZoomIn, ZoomOut, RotateCcw, Shuffle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import type { TileData } from "@/lib/types"
@@ -13,9 +13,10 @@ interface QuiltPreviewProps {
   layout: number[][]
   gridSize: { rows: number; cols: number }
   onLayoutUpdate?: (newLayout: number[][]) => void
+  onRegenerate?: () => void
 }
 
-export function QuiltPreview({ tiles, layout, gridSize, onLayoutUpdate }: QuiltPreviewProps) {
+export function QuiltPreview({ tiles, layout, gridSize, onLayoutUpdate, onRegenerate }: QuiltPreviewProps) {
   const [selectedPosition, setSelectedPosition] = useState<{ row: number; col: number } | null>(null)
 
   const [scale, setScale] = useState(1)
@@ -138,6 +139,12 @@ export function QuiltPreview({ tiles, layout, gridSize, onLayoutUpdate }: QuiltP
             <Button variant="outline" size="sm" onClick={handleZoomIn}>
               <ZoomIn className="h-4 w-4" />
             </Button>
+            {onRegenerate && (
+              <Button variant="outline" size="sm" onClick={onRegenerate}>
+                <Shuffle className="mr-2 h-4 w-4" />
+                Regenerate
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
               <RefreshCw className="mr-2 h-4 w-4" />
               Start Over

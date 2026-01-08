@@ -15,7 +15,10 @@ export function optimizeQuiltLayout(
   rows: number,
   cols: number,
   config: OptimizationConfig = DEFAULT_CONFIG,
+  seed?: number,
 ): number[][] {
+  const random = seed !== undefined ? seededRandom(seed) : Math.random
+
   // Expand tiles based on their count
   const expandedTileIndices: number[] = []
   tiles.forEach((tile, index) => {
@@ -27,7 +30,7 @@ export function optimizeQuiltLayout(
   // Shuffle to create initial random layout
   const shuffled = [...expandedTileIndices]
   for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
+    const j = Math.floor(random() * (i + 1))
     ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
   }
 
@@ -50,10 +53,10 @@ export function optimizeQuiltLayout(
   for (let iteration = 0; iteration < config.maxIterations; iteration++) {
     // Random swap
     const newLayout = currentLayout.map((row) => [...row])
-    const r1 = Math.floor(Math.random() * rows)
-    const c1 = Math.floor(Math.random() * cols)
-    const r2 = Math.floor(Math.random() * rows)
-    const c2 = Math.floor(Math.random() * cols)
+    const r1 = Math.floor(random() * rows)
+    const c1 = Math.floor(random() * cols)
+    const r2 = Math.floor(random() * rows)
+    const c2 = Math.floor(random() * cols)
 
     // Swap tiles
     const temp = newLayout[r1][c1]
@@ -64,7 +67,7 @@ export function optimizeQuiltLayout(
     const deltaEnergy = newEnergy - currentEnergy
 
     // Accept or reject based on simulated annealing
-    if (deltaEnergy < 0 || Math.random() < Math.exp(-deltaEnergy / temperature)) {
+    if (deltaEnergy < 0 || random() < Math.exp(-deltaEnergy / temperature)) {
       currentLayout = newLayout
       currentEnergy = newEnergy
 
@@ -78,6 +81,14 @@ export function optimizeQuiltLayout(
   }
 
   return bestLayout
+}
+
+function seededRandom(seed: number): () => number {
+  let state = seed
+  return () => {
+    state = (state * 1664525 + 1013904223) % 4294967296
+    return state / 4294967296
+  }
 }
 
 function calculateEnergy(layout: number[][], tiles: TileData[], config: OptimizationConfig): number {
@@ -111,8 +122,10 @@ function calculateEnergy(layout: number[][], tiles: TileData[], config: Optimiza
             energy += 100 * config.spacingWeight
           }
 
-          // Rule 1: Similar colors should not be adjacent
-          const colorDifference = calculateColorDifference(currentTile.dominantColor, neighborTile.dominantColor)
+          const colorDifference = calculateColorDifference(
+            currentTile.blurredDominantColor,
+            neighborTile.blurredDominantColor,
+          )
           energy += (1 / (colorDifference + 1)) * config.colorWeight
 
           // Rule 2: Brightness should vary
@@ -179,22 +192,28 @@ function calculateBrightnessClustering(layout: number[][], tiles: TileData[]): n
   const rows = layout.length
   const cols = layout[0].length
 
-  // Check for patches of similar brightness in 2x2 windows
-  for (let r = 0; r < rows - 1; r++) {
-    for (let c = 0; c < cols - 1; c++) {
-      const brightnesses = [
-        tiles[layout[r][c]].brightness,
-        tiles[layout[r][c + 1]].brightness,
-        tiles[layout[r + 1][c]].brightness,
-        tiles[layout[r + 1][c + 1]].brightness,
-      ]
+  const windowSize = Math.min(rows, cols) >= 5 ? 3 : 2
+  const windowArea = windowSize * windowSize
+  const threshold = windowSize === 3 ? 900 : 400 // Scale threshold with window size
 
-      const avg = brightnesses.reduce((a, b) => a + b, 0) / 4
-      const variance = brightnesses.reduce((sum, b) => sum + Math.pow(b - avg, 2), 0) / 4
+  // Check for patches of similar brightness in windowSize x windowSize windows
+  for (let r = 0; r <= rows - windowSize; r++) {
+    for (let c = 0; c <= cols - windowSize; c++) {
+      const brightnesses: number[] = []
+
+      // Collect brightness values from the window
+      for (let dr = 0; dr < windowSize; dr++) {
+        for (let dc = 0; dc < windowSize; dc++) {
+          brightnesses.push(tiles[layout[r + dr][c + dc]].brightness)
+        }
+      }
+
+      const avg = brightnesses.reduce((a, b) => a + b, 0) / windowArea
+      const variance = brightnesses.reduce((sum, b) => sum + Math.pow(b - avg, 2), 0) / windowArea
 
       // Low variance means similar brightness (bad)
-      if (variance < 400) {
-        clustering += (400 - variance) / 10
+      if (variance < threshold) {
+        clustering += (threshold - variance) / 10
       }
     }
   }

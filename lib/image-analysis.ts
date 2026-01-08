@@ -52,6 +52,9 @@ export async function analyzeTileImage(imageData: string): Promise<Omit<TileData
 
         const dominantColor = `rgb(${r}, ${g}, ${b})`
 
+        const blurredImageData = applyGaussianBlur(imageData, size, size)
+        const blurredDominantColor = extractDominantColorFromPixels(blurredImageData.data, pixelCount)
+
         // Create color histogram (simplified)
         const colorHistogram = Object.values(colorBuckets).slice(0, 64)
 
@@ -63,6 +66,7 @@ export async function analyzeTileImage(imageData: string): Promise<Omit<TileData
 
         resolve({
           dominantColor,
+          blurredDominantColor,
           brightness,
           colorHistogram,
           patternType,
@@ -76,6 +80,70 @@ export async function analyzeTileImage(imageData: string): Promise<Omit<TileData
     img.onerror = () => reject(new Error("Failed to load image"))
     img.src = imageData
   })
+}
+
+function applyGaussianBlur(imageData: ImageData, width: number, height: number): ImageData {
+  const pixels = imageData.data
+  const output = new ImageData(width, height)
+  const outputPixels = output.data
+
+  // 5x5 Gaussian kernel
+  const kernel = [
+    [1, 4, 7, 4, 1],
+    [4, 16, 26, 16, 4],
+    [7, 26, 41, 26, 7],
+    [4, 16, 26, 16, 4],
+    [1, 4, 7, 4, 1],
+  ]
+  const kernelSum = 273
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      let r = 0,
+        g = 0,
+        b = 0
+
+      // Apply kernel
+      for (let ky = -2; ky <= 2; ky++) {
+        for (let kx = -2; kx <= 2; kx++) {
+          const px = Math.min(Math.max(x + kx, 0), width - 1)
+          const py = Math.min(Math.max(y + ky, 0), height - 1)
+          const i = (py * width + px) * 4
+          const weight = kernel[ky + 2][kx + 2]
+
+          r += pixels[i] * weight
+          g += pixels[i + 1] * weight
+          b += pixels[i + 2] * weight
+        }
+      }
+
+      const i = (y * width + x) * 4
+      outputPixels[i] = r / kernelSum
+      outputPixels[i + 1] = g / kernelSum
+      outputPixels[i + 2] = b / kernelSum
+      outputPixels[i + 3] = 255
+    }
+  }
+
+  return output
+}
+
+function extractDominantColorFromPixels(pixels: Uint8ClampedArray, pixelCount: number): string {
+  let r = 0,
+    g = 0,
+    b = 0
+
+  for (let i = 0; i < pixels.length; i += 4) {
+    r += pixels[i]
+    g += pixels[i + 1]
+    b += pixels[i + 2]
+  }
+
+  r = Math.round(r / pixelCount)
+  g = Math.round(g / pixelCount)
+  b = Math.round(b / pixelCount)
+
+  return `rgb(${r}, ${g}, ${b})`
 }
 
 function detectPatternType(pixels: Uint8ClampedArray, size: number): TileData["patternType"] {

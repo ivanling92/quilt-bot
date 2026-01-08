@@ -7,6 +7,7 @@ import { GridConfiguration } from "@/components/grid-configuration"
 import { QuiltPreview } from "@/components/quilt-preview"
 import { Button } from "@/components/ui/button"
 import type { TileData } from "@/lib/types"
+import { optimizeQuiltLayout } from "@/lib/optimization-algorithm"
 
 export default function QuiltTilerPage() {
   const [tiles, setTiles] = useState<TileData[]>([])
@@ -15,6 +16,7 @@ export default function QuiltTilerPage() {
   const [step, setStep] = useState<"capture" | "configure" | "preview">("capture")
   const [validationError, setValidationError] = useState<string | null>(null)
   const [tileIdCounter, setTileIdCounter] = useState(0)
+  const [randomSeed, setRandomSeed] = useState<number>(Date.now())
 
   const addTile = (tile: TileData) => {
     setTileIdCounter((prev) => {
@@ -55,6 +57,14 @@ export default function QuiltTilerPage() {
   const handleGenerateQuilt = (layout: number[][]) => {
     setOptimizedLayout(layout)
     setStep("preview")
+  }
+
+  const handleRegenerate = () => {
+    const newSeed = Date.now()
+    setRandomSeed(newSeed)
+
+    const newLayout = optimizeQuiltLayout(tiles, gridSize.rows, gridSize.cols, undefined, newSeed)
+    setOptimizedLayout(newLayout)
   }
 
   const handleLayoutUpdate = (newLayout: number[][]) => {
@@ -150,6 +160,7 @@ export default function QuiltTilerPage() {
             layout={optimizedLayout}
             gridSize={gridSize}
             onLayoutUpdate={handleLayoutUpdate}
+            onRegenerate={handleRegenerate}
           />
         )}
       </main>

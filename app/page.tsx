@@ -5,6 +5,7 @@ import { CameraCapture } from "@/components/camera-capture"
 import { TileGallery } from "@/components/tile-gallery"
 import { GridConfiguration } from "@/components/grid-configuration"
 import { QuiltPreview } from "@/components/quilt-preview"
+import { Button } from "@/components/ui/button"
 import type { TileData } from "@/lib/types"
 
 export default function QuiltTilerPage() {
@@ -90,6 +91,14 @@ export default function QuiltTilerPage() {
           <div className="space-y-8">
             <CameraCapture onCapture={addTile} />
             {tiles.length > 0 && <TileGallery tiles={tiles} onUpdate={updateTile} onRemove={removeTile} />}
+
+            {tiles.length >= 3 && (
+              <div className="flex justify-end">
+                <Button onClick={() => setStep("configure")} size="lg" className="min-w-[200px]">
+                  Next: Configure Grid
+                </Button>
+              </div>
+            )}
           </div>
         )}
 

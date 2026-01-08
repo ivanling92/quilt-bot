@@ -26,7 +26,10 @@ export function CameraCapture({ onCapture }: CameraCaptureProps) {
       })
       if (videoRef.current) {
         videoRef.current.srcObject = stream
-        setIsStreaming(true)
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current?.play()
+          setIsStreaming(true)
+        }
       }
     } catch (error) {
       console.error("Error accessing camera:", error)

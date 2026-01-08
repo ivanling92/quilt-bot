@@ -111,6 +111,23 @@ export default function QuiltTilerPage() {
           />
         )}
       </main>
+
+      {/* Footer with designer credit */}
+      <footer className="border-t border-border bg-card mt-16">
+        <div className="container mx-auto px-4 py-6 text-center">
+          <p className="text-sm text-muted-foreground">
+            Designed by{" "}
+            <a
+              href="https://ivanling.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-foreground hover:text-primary transition-colors underline underline-offset-4"
+            >
+              Ivan Ling
+            </a>
+          </p>
+        </div>
+      </footer>
     </div>
   )
 }

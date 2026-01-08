@@ -3,10 +3,11 @@
 import type React from "react"
 
 import { useState, useRef } from "react"
-import { Download, RefreshCw, ZoomIn, ZoomOut, RotateCcw, Shuffle } from "lucide-react"
+import { Download, RefreshCw, ZoomIn, ZoomOut, RotateCcw, Shuffle, ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import type { TileData } from "@/lib/types"
+import Link from "next/link"
 
 interface QuiltPreviewProps {
   tiles: TileData[]
@@ -24,39 +25,104 @@ export function QuiltPreview({ tiles, layout, gridSize, onLayoutUpdate, onRegene
   const [isDragging, setIsDragging] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const containerRef = useRef<HTMLDivElement>(null)
+  const [isDownloading, setIsDownloading] = useState(false)
 
-  const handleDownload = () => {
-    const canvas = document.createElement("canvas")
-    const tileSize = 200
-    canvas.width = gridSize.cols * tileSize
-    canvas.height = gridSize.rows * tileSize
-    const ctx = canvas.getContext("2d")
-    if (!ctx) return
+  const handleDownload = async () => {
+    if (isDownloading) return
+    setIsDownloading(true)
 
-    let loadedImages = 0
-    const totalImages = gridSize.rows * gridSize.cols
+    try {
+      const canvas = document.createElement("canvas")
+      const tileSize = 200
+      const fullWidth = gridSize.cols * tileSize
+      const fullHeight = gridSize.rows * tileSize
 
-    layout.forEach((row, rowIndex) => {
-      row.forEach((tileIndex, colIndex) => {
-        const tile = tiles[tileIndex]
-        if (!tile) return
+      // Calculate scaled dimensions (500px width, maintain aspect ratio)
+      const scaledWidth = 500
+      const scaledHeight = Math.round((fullHeight / fullWidth) * scaledWidth)
 
-        const img = new Image()
-        img.crossOrigin = "anonymous"
-        img.onload = () => {
-          ctx.drawImage(img, colIndex * tileSize, rowIndex * tileSize, tileSize, tileSize)
-          loadedImages++
+      canvas.width = scaledWidth
+      canvas.height = scaledHeight
+      const ctx = canvas.getContext("2d")
+      if (!ctx) {
+        setIsDownloading(false)
+        return
+      }
 
-          if (loadedImages === totalImages) {
-            const link = document.createElement("a")
-            link.download = `quilt-${Date.now()}.png`
-            link.href = canvas.toDataURL("image/png")
-            link.click()
-          }
-        }
-        img.src = tile.imageData
+      // Create temporary canvas at full size
+      const tempCanvas = document.createElement("canvas")
+      tempCanvas.width = fullWidth
+      tempCanvas.height = fullHeight
+      const tempCtx = tempCanvas.getContext("2d")
+      if (!tempCtx) {
+        setIsDownloading(false)
+        return
+      }
+
+      let loadedImages = 0
+      const totalImages = gridSize.rows * gridSize.cols
+
+      // Draw at full size first
+      await new Promise<void>((resolve) => {
+        layout.forEach((row, rowIndex) => {
+          row.forEach((tileIndex, colIndex) => {
+            const tile = tiles[tileIndex]
+            if (!tile) return
+
+            const img = new Image()
+            img.crossOrigin = "anonymous"
+            img.onload = () => {
+              tempCtx.drawImage(img, colIndex * tileSize, rowIndex * tileSize, tileSize, tileSize)
+              loadedImages++
+
+              if (loadedImages === totalImages) {
+                resolve()
+              }
+            }
+            img.src = tile.imageData
+          })
+        })
       })
-    })
+
+      // Scale down to 500px width
+      ctx.drawImage(tempCanvas, 0, 0, scaledWidth, scaledHeight)
+      const scaledImageData = canvas.toDataURL("image/jpeg", 0.85)
+
+      // Save scaled version to blob
+      await fetch("/api/quilts/save", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          imageData: scaledImageData,
+          gridRows: gridSize.rows,
+          gridCols: gridSize.cols,
+          uniquePatterns: tiles.length,
+          totalTiles: layout.flat().length,
+        }),
+      })
+
+      // Download full-size version for user
+      tempCanvas.toBlob(
+        (blob) => {
+          if (blob) {
+            const link = document.createElement("a")
+            link.download = `quilt-${Date.now()}.jpg`
+            link.href = URL.createObjectURL(blob)
+            link.click()
+            URL.revokeObjectURL(link.href)
+          }
+        },
+        "image/jpeg",
+        0.85,
+      )
+    } catch (error) {
+      console.error("Error downloading quilt:", error)
+      alert("Failed to save quilt. Please try again.")
+    } finally {
+      setIsDownloading(false)
+    }
   }
 
   const handleTileClick = (rowIndex: number, colIndex: number) => {
@@ -149,9 +215,15 @@ export function QuiltPreview({ tiles, layout, gridSize, onLayoutUpdate, onRegene
               <RefreshCw className="mr-2 h-4 w-4" />
               Start Over
             </Button>
-            <Button size="sm" onClick={handleDownload}>
+            <Link href="/gallery">
+              <Button variant="outline" size="sm">
+                <ExternalLink className="mr-2 h-4 w-4" />
+                Gallery
+              </Button>
+            </Link>
+            <Button size="sm" onClick={handleDownload} disabled={isDownloading}>
               <Download className="mr-2 h-4 w-4" />
-              Download
+              {isDownloading ? "Saving..." : "Download"}
             </Button>
           </div>
         </div>

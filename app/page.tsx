@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { CameraCapture } from "@/components/camera-capture"
 import { TileGallery } from "@/components/tile-gallery"
 import { GridConfiguration } from "@/components/grid-configuration"
@@ -17,6 +17,32 @@ export default function QuiltTilerPage() {
   const [validationError, setValidationError] = useState<string | null>(null)
   const [tileIdCounter, setTileIdCounter] = useState(0)
   const [randomSeed, setRandomSeed] = useState<number>(Date.now())
+
+  useEffect(() => {
+    const initSession = async () => {
+      try {
+        const response = await fetch("/api/analytics/session")
+        const data = await response.json()
+        console.log("[v0] Analytics session initialized:", data)
+      } catch (error) {
+        console.error("[v0] Failed to initialize analytics:", error)
+      }
+    }
+
+    initSession()
+  }, [])
+
+  const trackGeneration = async () => {
+    try {
+      const response = await fetch("/api/analytics/track-generation", {
+        method: "POST",
+      })
+      const data = await response.json()
+      console.log("[v0] Generation tracked:", data)
+    } catch (error) {
+      console.error("[v0] Failed to track generation:", error)
+    }
+  }
 
   const addTile = (tile: TileData) => {
     setTileIdCounter((prev) => {
@@ -57,6 +83,7 @@ export default function QuiltTilerPage() {
   const handleGenerateQuilt = (layout: number[][]) => {
     setOptimizedLayout(layout)
     setStep("preview")
+    trackGeneration()
   }
 
   const handleRegenerate = () => {
@@ -65,6 +92,7 @@ export default function QuiltTilerPage() {
 
     const newLayout = optimizeQuiltLayout(tiles, gridSize.rows, gridSize.cols, undefined, newSeed)
     setOptimizedLayout(newLayout)
+    trackGeneration()
   }
 
   const handleLayoutUpdate = (newLayout: number[][]) => {

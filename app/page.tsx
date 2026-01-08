@@ -14,9 +14,14 @@ export default function QuiltTilerPage() {
   const [optimizedLayout, setOptimizedLayout] = useState<number[][]>([])
   const [step, setStep] = useState<"capture" | "configure" | "preview">("capture")
   const [validationError, setValidationError] = useState<string | null>(null)
+  const [tileIdCounter, setTileIdCounter] = useState(0)
 
   const addTile = (tile: TileData) => {
-    setTiles([...tiles, { ...tile, id: `tile-${Date.now()}` }])
+    setTileIdCounter((prev) => {
+      const newId = prev + 1
+      setTiles((currentTiles) => [...currentTiles, { ...tile, id: `tile-${Date.now()}-${newId}` }])
+      return newId
+    })
     setValidationError(null)
   }
 

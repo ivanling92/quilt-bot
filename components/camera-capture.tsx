@@ -165,6 +165,8 @@ export function CameraCapture({ onCapture }: CameraCaptureProps) {
         reader.onload = async (e) => {
           const imageData = e.target?.result as string
           await processImage(imageData)
+          // Small delay to ensure unique timestamps
+          await new Promise((r) => setTimeout(r, 10))
           resolve()
         }
         reader.readAsDataURL(file)

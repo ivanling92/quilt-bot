@@ -58,9 +58,23 @@ export function TileGallery({ tiles, onUpdate, onRemove }: TileGalleryProps) {
             <div className="flex items-center gap-2">
               <label className="text-sm text-muted-foreground flex-shrink-0">Qty:</label>
               <Input
-                type="number"
-                value={tile.count}
-                onChange={(e) => onUpdate(tile.id, { count: Number.parseInt(e.target.value) || 0 })}
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={tile.count === 0 ? "" : tile.count.toString()}
+                onChange={(e) => {
+                  const value = e.target.value
+                  // Allow empty string or valid numbers
+                  if (value === "") {
+                    onUpdate(tile.id, { count: 0 })
+                  } else {
+                    const num = Number.parseInt(value, 10)
+                    if (!isNaN(num)) {
+                      onUpdate(tile.id, { count: num })
+                    }
+                  }
+                }}
+                placeholder="0"
                 className="h-8"
               />
             </div>

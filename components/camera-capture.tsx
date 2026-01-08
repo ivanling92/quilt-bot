@@ -15,6 +15,7 @@ interface CameraCaptureProps {
 
 export function CameraCapture({ onCapture }: CameraCaptureProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isCameraOpen, setIsCameraOpen] = useState(false)
   const [isVideoReady, setIsVideoReady] = useState(false)
@@ -32,69 +33,85 @@ export function CameraCapture({ onCapture }: CameraCaptureProps) {
     }
   }, [isCameraOpen])
 
+  useEffect(() => {
+    if (!isVideoReady || !videoRef.current || !canvasRef.current) return
+
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
+
+    const drawFrame = () => {
+      if (!video || video.paused || video.ended) return
+
+      // Set canvas to match the video display size
+      const size = Math.min(video.videoWidth, video.videoHeight)
+      canvas.width = size
+      canvas.height = size
+
+      // Calculate crop area (center square)
+      const offsetX = (video.videoWidth - size) / 2
+      const offsetY = (video.videoHeight - size) / 2
+
+      // Draw the cropped square portion
+      ctx.drawImage(video, offsetX, offsetY, size, size, 0, 0, size, size)
+
+      requestAnimationFrame(drawFrame)
+    }
+
+    drawFrame()
+  }, [isVideoReady])
+
   const initCamera = async () => {
     setDebugMessage("Requesting camera access...")
-    console.log("[v0] Requesting camera access...")
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: "environment",
           width: { ideal: 1280 },
-          height: { ideal: 720 },
+          height: { ideal: 1280 },
         },
       })
 
       setDebugMessage(`Got stream with ${stream.getVideoTracks().length} video tracks`)
-      console.log("[v0] Got media stream:", stream.getVideoTracks())
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream
-        setDebugMessage("Stream attached to video element, waiting for metadata...")
-        console.log("[v0] Stream attached to video element")
+        setDebugMessage("Stream attached, waiting for metadata...")
 
         videoRef.current.onloadedmetadata = () => {
-          setDebugMessage("Metadata loaded, attempting to play...")
-          console.log("[v0] Video metadata loaded")
+          setDebugMessage("Metadata loaded, playing...")
 
           videoRef.current
             ?.play()
             .then(() => {
-              setDebugMessage("Video playing successfully!")
-              console.log("[v0] Video playing successfully")
+              setDebugMessage("Video playing!")
               setIsVideoReady(true)
             })
             .catch((err) => {
               setDebugMessage(`Play failed: ${err.message}`)
-              console.error("[v0] Video play failed:", err)
             })
         }
 
         videoRef.current.onerror = (e) => {
           setDebugMessage(`Video error: ${JSON.stringify(e)}`)
-          console.error("[v0] Video element error:", e)
         }
       } else {
         setDebugMessage("ERROR: videoRef.current is null!")
-        console.error("[v0] videoRef.current is null")
       }
     } catch (error) {
       const err = error as Error
       setDebugMessage(`Camera error: ${err.message}`)
-      console.error("[v0] Error accessing camera:", error)
       alert(`Could not access camera: ${err.message}. Please use the file upload instead.`)
       setIsCameraOpen(false)
     }
   }
 
   const cleanupCamera = () => {
-    console.log("[v0] Cleaning up camera...")
     if (videoRef.current?.srcObject) {
       const stream = videoRef.current.srcObject as MediaStream
-      stream.getTracks().forEach((track) => {
-        track.stop()
-        console.log("[v0] Stopped track:", track.label)
-      })
+      stream.getTracks().forEach((track) => track.stop())
       videoRef.current.srcObject = null
     }
     setIsVideoReady(false)
@@ -102,52 +119,64 @@ export function CameraCapture({ onCapture }: CameraCaptureProps) {
   }
 
   const openCamera = () => {
-    console.log("[v0] Opening camera modal...")
     setIsCameraOpen(true)
   }
 
   const closeCamera = () => {
-    console.log("[v0] Closing camera modal...")
     cleanupCamera()
     setIsCameraOpen(false)
   }
 
   const capturePhoto = async () => {
-    if (!videoRef.current) {
-      console.error("[v0] Cannot capture: videoRef is null")
-      return
-    }
+    if (!videoRef.current) return
 
-    console.log("[v0] Capturing photo...")
     setDebugMessage("Capturing...")
 
-    const canvas = document.createElement("canvas")
-    canvas.width = videoRef.current.videoWidth || 640
-    canvas.height = videoRef.current.videoHeight || 480
-    const ctx = canvas.getContext("2d")
+    const video = videoRef.current
+    const size = Math.min(video.videoWidth, video.videoHeight)
+    const offsetX = (video.videoWidth - size) / 2
+    const offsetY = (video.videoHeight - size) / 2
+
+    // Create a square canvas for the captured image
+    const captureCanvas = document.createElement("canvas")
+    captureCanvas.width = size
+    captureCanvas.height = size
+    const ctx = captureCanvas.getContext("2d")
     if (!ctx) return
 
-    ctx.drawImage(videoRef.current, 0, 0)
-    const imageData = canvas.toDataURL("image/jpeg")
+    // Draw the center square crop
+    ctx.drawImage(video, offsetX, offsetY, size, size, 0, 0, size, size)
+    const imageData = captureCanvas.toDataURL("image/jpeg")
 
     await processImage(imageData)
     closeCamera()
   }
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
+    const files = event.target.files
+    if (!files || files.length === 0) return
 
-    const reader = new FileReader()
-    reader.onload = async (e) => {
-      const imageData = e.target?.result as string
-      await processImage(imageData)
+    setIsProcessing(true)
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      await new Promise<void>((resolve) => {
+        const reader = new FileReader()
+        reader.onload = async (e) => {
+          const imageData = e.target?.result as string
+          await processImage(imageData)
+          resolve()
+        }
+        reader.readAsDataURL(file)
+      })
     }
-    reader.readAsDataURL(file)
+
+    setIsProcessing(false)
+    // Reset input so same files can be selected again
+    event.target.value = ""
   }
 
   const processImage = async (imageData: string) => {
-    setIsProcessing(true)
     try {
       const analysis = await analyzeTileImage(imageData)
       onCapture({
@@ -159,8 +188,6 @@ export function CameraCapture({ onCapture }: CameraCaptureProps) {
     } catch (error) {
       console.error("Error processing image:", error)
       alert("Error processing image. Please try again.")
-    } finally {
-      setIsProcessing(false)
     }
   }
 
@@ -177,15 +204,22 @@ export function CameraCapture({ onCapture }: CameraCaptureProps) {
             </Button>
             <Button onClick={() => fileInputRef.current?.click()} variant="outline" className="flex-1">
               <Upload className="mr-2 h-4 w-4" />
-              Upload Image
+              Upload Images
             </Button>
-            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleFileUpload}
+              className="hidden"
+            />
           </div>
 
           {isProcessing && (
             <div className="text-center text-muted-foreground">
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-2" />
-              <p>Analyzing image...</p>
+              <p>Analyzing images...</p>
             </div>
           )}
         </div>
@@ -200,36 +234,43 @@ export function CameraCapture({ onCapture }: CameraCaptureProps) {
             </Button>
           </div>
 
-          <div className="flex-1 relative flex items-center justify-center bg-gray-900">
-            {/* Debug message overlay */}
-            <div className="absolute top-4 left-4 right-4 bg-black/70 text-white text-sm p-2 rounded z-10">
-              Debug: {debugMessage || "Initializing..."}
+          <div className="flex-1 relative flex items-center justify-center bg-gray-900 p-4">
+            {/* Debug message */}
+            <div className="absolute top-2 left-2 right-2 bg-black/70 text-white text-xs p-2 rounded z-10">
+              {debugMessage || "Initializing..."}
             </div>
 
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className="max-w-full max-h-full object-contain"
-              style={{ display: isVideoReady ? "block" : "none" }}
-            />
+            {/* Hidden video element for stream source */}
+            <video ref={videoRef} autoPlay playsInline muted className="hidden" />
 
-            {!isVideoReady && (
-              <div className="text-white text-center p-8">
-                <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-white mb-4" />
-                <p className="text-lg">Starting camera...</p>
-                <p className="text-sm text-gray-400 mt-2">Please allow camera access if prompted</p>
+            {/* Square canvas showing cropped preview */}
+            {isVideoReady ? (
+              <canvas
+                ref={canvasRef}
+                className="w-full max-w-[80vmin] aspect-square rounded-lg border-4 border-white/50"
+              />
+            ) : (
+              <div className="w-full max-w-[80vmin] aspect-square rounded-lg border-4 border-white/30 flex items-center justify-center bg-gray-800">
+                <div className="text-white text-center p-8">
+                  <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-white mb-4" />
+                  <p className="text-lg">Starting camera...</p>
+                  <p className="text-sm text-gray-400 mt-2">Please allow camera access</p>
+                </div>
               </div>
             )}
           </div>
 
           <div className="p-4 bg-black/50 flex gap-4">
-            <Button onClick={capturePhoto} className="flex-1" size="lg" disabled={!isVideoReady || isProcessing}>
-              <Camera className="mr-2 h-5 w-5" />
-              {isProcessing ? "Processing..." : "Capture Photo"}
+            <Button
+              onClick={capturePhoto}
+              className="flex-1 h-14 text-lg"
+              size="lg"
+              disabled={!isVideoReady || isProcessing}
+            >
+              <Camera className="mr-2 h-6 w-6" />
+              {isProcessing ? "Processing..." : "Capture"}
             </Button>
-            <Button onClick={closeCamera} variant="outline" size="lg" className="bg-white">
+            <Button onClick={closeCamera} variant="outline" size="lg" className="bg-white h-14">
               Cancel
             </Button>
           </div>

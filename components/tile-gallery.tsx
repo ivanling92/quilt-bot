@@ -59,9 +59,8 @@ export function TileGallery({ tiles, onUpdate, onRemove }: TileGalleryProps) {
               <label className="text-sm text-muted-foreground flex-shrink-0">Qty:</label>
               <Input
                 type="number"
-                min="1"
                 value={tile.count}
-                onChange={(e) => onUpdate(tile.id, { count: Number.parseInt(e.target.value) || 1 })}
+                onChange={(e) => onUpdate(tile.id, { count: Number.parseInt(e.target.value) || 0 })}
                 className="h-8"
               />
             </div>

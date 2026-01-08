@@ -13,17 +13,38 @@ export default function QuiltTilerPage() {
   const [gridSize, setGridSize] = useState<{ rows: number; cols: number }>({ rows: 4, cols: 4 })
   const [optimizedLayout, setOptimizedLayout] = useState<number[][]>([])
   const [step, setStep] = useState<"capture" | "configure" | "preview">("capture")
+  const [validationError, setValidationError] = useState<string | null>(null)
 
   const addTile = (tile: TileData) => {
     setTiles([...tiles, { ...tile, id: `tile-${Date.now()}` }])
+    setValidationError(null)
   }
 
   const updateTile = (id: string, updates: Partial<TileData>) => {
     setTiles(tiles.map((tile) => (tile.id === id ? { ...tile, ...updates } : tile)))
+    setValidationError(null)
   }
 
   const removeTile = (id: string) => {
     setTiles(tiles.filter((tile) => tile.id !== id))
+  }
+
+  const handleProceedToConfigure = () => {
+    // Check if we have at least 3 tiles
+    if (tiles.length < 3) {
+      setValidationError("Please add at least 3 tile patterns before continuing.")
+      return
+    }
+
+    // Check if any tile has invalid count (0 or negative)
+    const invalidTiles = tiles.filter((tile) => !tile.count || tile.count < 1)
+    if (invalidTiles.length > 0) {
+      setValidationError("All tiles must have a quantity of at least 1.")
+      return
+    }
+
+    setValidationError(null)
+    setStep("configure")
   }
 
   const handleGenerateQuilt = (layout: number[][]) => {
@@ -60,7 +81,7 @@ export default function QuiltTilerPage() {
               <span className="text-sm font-medium">1. Capture Tiles</span>
             </button>
             <button
-              onClick={() => setStep("configure")}
+              onClick={handleProceedToConfigure}
               disabled={tiles.length === 0}
               className={`flex items-center gap-2 pb-2 border-b-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                 step === "configure"
@@ -92,11 +113,18 @@ export default function QuiltTilerPage() {
             <CameraCapture onCapture={addTile} />
             {tiles.length > 0 && <TileGallery tiles={tiles} onUpdate={updateTile} onRemove={removeTile} />}
 
-            {tiles.length >= 3 && (
-              <div className="flex justify-end">
-                <Button onClick={() => setStep("configure")} size="lg" className="min-w-[200px]">
-                  Next: Configure Grid
-                </Button>
+            {tiles.length > 0 && (
+              <div className="space-y-4">
+                {validationError && (
+                  <div className="bg-destructive/10 border border-destructive text-destructive rounded-lg p-4 text-center">
+                    {validationError}
+                  </div>
+                )}
+                <div className="flex justify-end">
+                  <Button onClick={handleProceedToConfigure} size="lg" className="min-w-[200px]">
+                    Next: Configure Grid
+                  </Button>
+                </div>
               </div>
             )}
           </div>

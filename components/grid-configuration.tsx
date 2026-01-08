@@ -18,17 +18,25 @@ interface GridConfigurationProps {
 
 export function GridConfiguration({ tiles, gridSize, onGridSizeChange, onGenerate }: GridConfigurationProps) {
   const [isGenerating, setIsGenerating] = useState(false)
+  const [validationError, setValidationError] = useState<string | null>(null)
 
   const totalTiles = tiles.reduce((sum, tile) => sum + tile.count, 0)
   const requiredTiles = gridSize.rows * gridSize.cols
-  const canGenerate = totalTiles >= requiredTiles
+  const canGenerate = totalTiles >= requiredTiles && gridSize.rows >= 2 && gridSize.cols >= 2
 
   const handleGenerate = async () => {
-    if (!canGenerate) return
+    if (gridSize.rows < 2 || gridSize.cols < 2) {
+      setValidationError("Grid must be at least 2x2.")
+      return
+    }
+    if (totalTiles < requiredTiles) {
+      setValidationError(`You need ${requiredTiles - totalTiles} more tile(s) to fill this grid.`)
+      return
+    }
 
+    setValidationError(null)
     setIsGenerating(true)
     try {
-      // Run optimization in a setTimeout to allow UI to update
       setTimeout(() => {
         const layout = optimizeQuiltLayout(tiles, gridSize.rows, gridSize.cols)
         onGenerate(layout)
@@ -36,9 +44,19 @@ export function GridConfiguration({ tiles, gridSize, onGridSizeChange, onGenerat
       }, 100)
     } catch (error) {
       console.error("Error generating layout:", error)
-      alert("Error generating layout. Please try again.")
+      setValidationError("Error generating layout. Please try again.")
       setIsGenerating(false)
     }
+  }
+
+  const handleRowChange = (value: string) => {
+    setValidationError(null)
+    onGridSizeChange({ ...gridSize, rows: Number.parseInt(value) || 0 })
+  }
+
+  const handleColChange = (value: string) => {
+    setValidationError(null)
+    onGridSizeChange({ ...gridSize, cols: Number.parseInt(value) || 0 })
   }
 
   return (
@@ -51,20 +69,18 @@ export function GridConfiguration({ tiles, gridSize, onGridSizeChange, onGenerat
             <label className="text-sm font-medium text-foreground">Rows</label>
             <Input
               type="number"
-              min="2"
-              max="20"
-              value={gridSize.rows}
-              onChange={(e) => onGridSizeChange({ ...gridSize, rows: Number.parseInt(e.target.value) || 2 })}
+              value={gridSize.rows || ""}
+              onChange={(e) => handleRowChange(e.target.value)}
+              placeholder="Enter rows"
             />
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">Columns</label>
             <Input
               type="number"
-              min="2"
-              max="20"
-              value={gridSize.cols}
-              onChange={(e) => onGridSizeChange({ ...gridSize, cols: Number.parseInt(e.target.value) || 2 })}
+              value={gridSize.cols || ""}
+              onChange={(e) => handleColChange(e.target.value)}
+              placeholder="Enter columns"
             />
           </div>
         </div>
@@ -73,21 +89,22 @@ export function GridConfiguration({ tiles, gridSize, onGridSizeChange, onGenerat
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Grid size:</span>
             <span className="font-medium text-foreground">
-              {gridSize.rows} × {gridSize.cols} = {requiredTiles} tiles
+              {gridSize.rows || 0} x {gridSize.cols || 0} = {requiredTiles} tiles
             </span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Available tiles:</span>
-            <span className={`font-medium ${canGenerate ? "text-accent" : "text-destructive"}`}>
+            <span className={`font-medium ${totalTiles >= requiredTiles ? "text-accent" : "text-muted-foreground"}`}>
               {totalTiles} tiles
             </span>
           </div>
-          {!canGenerate && (
-            <p className="text-sm text-destructive">
-              You need {requiredTiles - totalTiles} more tile(s) to fill this grid.
-            </p>
-          )}
         </div>
+
+        {validationError && (
+          <div className="bg-destructive/10 border border-destructive text-destructive rounded-lg p-3 text-sm">
+            {validationError}
+          </div>
+        )}
 
         <div className="bg-card border border-border rounded-lg p-4 space-y-2 text-sm">
           <h3 className="font-medium text-foreground">Optimization Rules:</h3>
@@ -100,7 +117,7 @@ export function GridConfiguration({ tiles, gridSize, onGridSizeChange, onGenerat
           </ul>
         </div>
 
-        <Button onClick={handleGenerate} disabled={!canGenerate || isGenerating} className="w-full" size="lg">
+        <Button onClick={handleGenerate} disabled={isGenerating} className="w-full" size="lg">
           {isGenerating ? (
             <>
               <Spinner className="mr-2 h-4 w-4" />

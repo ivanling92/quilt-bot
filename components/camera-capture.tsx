@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useRef, useState, useEffect } from "react"
-import { Camera, Upload, X } from "lucide-react"
+import { Camera, Upload, X, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { analyzeTileImage } from "@/lib/image-analysis"
@@ -21,6 +21,7 @@ export function CameraCapture({ onCapture }: CameraCaptureProps) {
   const [isVideoReady, setIsVideoReady] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [debugMessage, setDebugMessage] = useState<string>("")
+  const [capturedImages, setCapturedImages] = useState<string[]>([])
 
   useEffect(() => {
     if (isCameraOpen) {
@@ -119,18 +120,30 @@ export function CameraCapture({ onCapture }: CameraCaptureProps) {
   }
 
   const openCamera = () => {
+    setCapturedImages([])
     setIsCameraOpen(true)
   }
 
-  const closeCamera = () => {
+  const closeCamera = async () => {
+    if (capturedImages.length > 0) {
+      setIsProcessing(true)
+      for (let i = 0; i < capturedImages.length; i++) {
+        await processImage(capturedImages[i])
+        // Small delay to ensure unique timestamps
+        await new Promise((r) => setTimeout(r, 10))
+      }
+      setIsProcessing(false)
+    }
+
     cleanupCamera()
     setIsCameraOpen(false)
+    setCapturedImages([])
   }
 
-  const capturePhoto = async () => {
+  const capturePhoto = () => {
     if (!videoRef.current) return
 
-    setDebugMessage("Capturing...")
+    setDebugMessage(`Capturing photo ${capturedImages.length + 1}...`)
 
     const video = videoRef.current
     const size = Math.min(video.videoWidth, video.videoHeight)
@@ -148,8 +161,8 @@ export function CameraCapture({ onCapture }: CameraCaptureProps) {
     ctx.drawImage(video, offsetX, offsetY, size, size, 0, 0, size, size)
     const imageData = captureCanvas.toDataURL("image/jpeg")
 
-    await processImage(imageData)
-    closeCamera()
+    setCapturedImages((prev) => [...prev, imageData])
+    setDebugMessage(`Captured ${capturedImages.length + 1} photo(s). Keep capturing or click Done.`)
   }
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -230,7 +243,9 @@ export function CameraCapture({ onCapture }: CameraCaptureProps) {
       {isCameraOpen && (
         <div className="fixed inset-0 z-50 bg-black flex flex-col">
           <div className="flex justify-between items-center p-4 bg-black/50">
-            <h3 className="text-xl font-semibold text-white">Camera Preview</h3>
+            <h3 className="text-xl font-semibold text-white">
+              Camera Preview {capturedImages.length > 0 && `(${capturedImages.length} captured)`}
+            </h3>
             <Button onClick={closeCamera} variant="ghost" size="icon" className="text-white hover:bg-white/20">
               <X className="h-6 w-6" />
             </Button>
@@ -241,6 +256,23 @@ export function CameraCapture({ onCapture }: CameraCaptureProps) {
             <div className="absolute top-2 left-2 right-2 bg-black/70 text-white text-xs p-2 rounded z-10">
               {debugMessage || "Initializing..."}
             </div>
+
+            {capturedImages.length > 0 && (
+              <div className="absolute bottom-2 left-2 right-2 flex gap-2 overflow-x-auto p-2 bg-black/70 rounded z-10">
+                {capturedImages.map((img, idx) => (
+                  <div key={idx} className="relative flex-shrink-0">
+                    <img
+                      src={img || "/placeholder.svg"}
+                      alt={`Capture ${idx + 1}`}
+                      className="w-16 h-16 object-cover rounded border-2 border-green-500"
+                    />
+                    <div className="absolute -top-1 -right-1 bg-green-500 rounded-full p-1">
+                      <Check className="w-3 h-3 text-white" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Hidden video element for stream source */}
             <video ref={videoRef} autoPlay playsInline muted className="hidden" />
@@ -270,10 +302,25 @@ export function CameraCapture({ onCapture }: CameraCaptureProps) {
               disabled={!isVideoReady || isProcessing}
             >
               <Camera className="mr-2 h-6 w-6" />
-              {isProcessing ? "Processing..." : "Capture"}
+              Capture
             </Button>
-            <Button onClick={closeCamera} variant="outline" size="lg" className="bg-white h-14">
-              Cancel
+            <Button
+              onClick={closeCamera}
+              variant={capturedImages.length > 0 ? "default" : "outline"}
+              size="lg"
+              className={`h-14 ${capturedImages.length > 0 ? "bg-green-600 hover:bg-green-700" : "bg-white"}`}
+              disabled={isProcessing}
+            >
+              {isProcessing ? (
+                <>
+                  <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                  Processing...
+                </>
+              ) : capturedImages.length > 0 ? (
+                <>Done ({capturedImages.length})</>
+              ) : (
+                "Cancel"
+              )}
             </Button>
           </div>
         </div>
